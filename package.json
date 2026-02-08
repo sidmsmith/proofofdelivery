@@ -1,0 +1,19 @@
+{
+  "name": "proofofdelivery",
+  "version": "1.2.1",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node server.js"
+  },
+  "description": "Proof of Delivery App - Barcode scanning and signature capture for truck drivers",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^5.1.0",
+    "node-fetch": "^2.6.7"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

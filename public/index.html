@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Proof of Delivery v1.2.1</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Barcode + QR scanning (camera) - ZXing (browser layer) -->
+  <script src="https://unpkg.com/@zxing/browser@0.1.5"></script>
+  <!-- 1D barcode scanning fallback (camera) - Quagga2 -->
+  <script src="https://unpkg.com/@ericblade/quagga2@1.8.2/dist/quagga.min.js"></script>
+  <!-- Signature Pad.js -->
+  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.6/dist/signature_pad.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #1f2933;
+      --text-muted: #616e7c;
+      --card-bg: #f8fafc;
+      --border-color: #d9e2ec;
+      --input-bg: #ffffff;
+      --input-border: #cbd5e0;
+      --input-focus-bg: #ffffff;
+      --input-focus-border: #5a67d8;
+      --input-focus-shadow: rgba(90,103,216,0.25);
+      --primary-color: #5a67d8;
+      --primary-hover: #4c51bf;
+      --success-color: #28a745;
+      --danger-color: #dc3545;
+      --header-bg: #d9e2ec;
+      --header-text: #1f2933;
+    }
+    body {
+      background: var(--bg-color);
+      color: var(--text-color);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      padding: 1rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      position: relative;
+      overflow: visible;
+    }
+    .theme-selector-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+      transition: transform 0.3s ease;
+      z-index: 5;
+    }
+    .theme-selector-btn:hover { 
+      transform: rotate(90deg);
+    }
+    .logo-wrapper {
+      display: flex;
+      justify-content: center;
+      position: relative;
+      width: 100%;
+    }
+    .logo-wrapper img.app-logo {
+      max-height: 24px;
+      width: auto;
+      display: block;
+    }
+    .header-title {
+      position: relative;
+      text-align: center;
+      width: 100%;
+      margin: 0;
+    }
+    .header-title-text {
+      display: inline-block;
+      color: var(--primary-color);
+    }
+    .app-version {
+      font-size: 0.35rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      white-space: nowrap;
+    }
+    .form-control, .form-select {
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--text-color);
+      border-radius: 8px;
+    }
+    .form-control:focus, .form-select:focus {
+      background: var(--input-focus-bg);
+      border-color: var(--input-focus-border);
+      box-shadow: 0 0 0 0.2rem var(--input-focus-shadow);
+      color: var(--text-color);
+    }
+    .btn-primary {
+      background: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+    }
+    .btn-success {
+      background: var(--success-color);
+      border-color: var(--success-color);
+    }
+    .btn-danger {
+      background: var(--danger-color);
+      border-color: var(--danger-color);
+    }
+    .status {
+      min-height: 1.5em;
+      font-weight: 500;
+      color: var(--text-color);
+      padding: 0.5rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    .status.info { background: #e3f2fd; color: #1976d2; }
+    .status.success { background: #e8f5e9; color: #2e7d32; }
+    .status.error { background: #ffebee; color: #c62828; }
+    
+    /* Error Modal */
+    .error-modal {
+      display: flex;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      box-sizing: border-box;
+    }
+    .error-modal[hidden] {
+      display: none !important;
+    }
+    .error-modal-content {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      max-width: 400px;
+      width: 100%;
+      overflow: hidden;
+    }
+    .error-modal-header {
+      background: #c62828;
+      color: white;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .error-modal-header i {
+      font-size: 1.5rem;
+    }
+    .error-modal-header h5 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+    .error-modal-body {
+      padding: 1.5rem;
+    }
+    .error-modal-body p {
+      margin: 0;
+      color: var(--text-color);
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+    .error-modal-footer {
+      padding: 1rem 1.5rem;
+      background: var(--card-bg);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-end;
+    }
+    .error-modal-footer .btn {
+      min-width: 100px;
+    }
+    
+    /* Barcode Input Section */
+    .barcode-input-group {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .barcode-input-group .form-control {
+      flex: 1;
+    }
+    .camera-btn {
+      min-width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+    }
+    
+    /* Shipment Info Section */
+    .shipment-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .info-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .info-field label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .info-field input {
+      font-size: 1rem;
+      transition: all 0.2s ease;
+    }
+    /* Protected/readonly fields - visually distinct with darker shading */
+    .info-field input[readonly] {
+      background: #d1d5db;
+      border-color: #9ca3af;
+      color: #374151;
+      cursor: not-allowed;
+      opacity: 1;
+      font-weight: 500;
+      position: relative;
+    }
+    .info-field input[readonly]:focus {
+      background: #d1d5db;
+      border-color: #9ca3af;
+      box-shadow: none;
+      outline: none;
+    }
+    /* Editable fields - clear and prominent */
+    .info-field input:not([readonly]) {
+      background: var(--input-bg);
+      border-color: var(--input-border);
+    }
+    .info-field input:not([readonly]):focus {
+      background: var(--input-focus-bg);
+      border-color: var(--input-focus-border);
+      box-shadow: 0 0 0 0.2rem var(--input-focus-shadow);
+    }
+    
+    /* Signature Section */
+    .signature-section {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 2px solid var(--border-color);
+    }
+    .signature-wrapper {
+      position: relative;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      background: #fff;
+      margin-bottom: 1rem;
+    }
+    #signatureCanvas {
+      display: block;
+      width: 100%;
+      height: 200px;
+      cursor: crosshair;
+      touch-action: none;
+    }
+    .signature-buttons {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .signature-buttons .btn {
+      min-width: 120px;
+      padding: 0.75rem 1.5rem;
+    }
+    
+    /* Camera Modal */
+    .camera-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.85);
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      box-sizing: border-box;
+    }
+    .camera-modal.active {
+      display: flex;
+    }
+    .camera-container {
+      width: 90%;
+      max-width: 400px;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+    }
+    #cameraViewport {
+      width: 100%;
+      height: 0;
+      padding-bottom: 75%; /* 4:3 aspect ratio */
+      position: relative;
+      overflow: hidden;
+      background: #000;
+    }
+    #cameraViewport video,
+    #cameraViewport canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    /* html5-qrcode injects <video> inside #interactive (not directly in #cameraViewport) */
+    #interactive {
+      position: absolute !important;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      width: auto !important;
+      height: auto !important;
+      min-height: 100% !important;
+      display: block !important;
+      z-index: 1; /* below scanning frame overlay */
+    }
+    #interactive video,
+    #interactive canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100% !important;
+      object-fit: cover;
+      display: block;
+    }
+    /* html5-qrcode uses an internal scan region container */
+    #interactive__scan_region {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #interactive__scan_region video,
+    #interactive__scan_region canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 100% !important;
+      max-height: none !important;
+      object-fit: cover;
+      display: block !important;
+    }
+    /* Keep qrbox scan area, hide html5-qrcode shaded overlay (we use our own green frame) */
+    #qr-shaded-region {
+      display: none !important;
+    }
+    /* Scanning frame overlay */
+    .scanning-frame {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80%;
+      height: 60%;
+      border: 2px solid #28a745;
+      border-radius: 8px;
+      pointer-events: none;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+      z-index: 10;
+    }
+    .scanning-frame::before,
+    .scanning-frame::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #28a745;
+    }
+    .scanning-frame::before {
+      top: -3px;
+      left: -3px;
+      border-right: none;
+      border-bottom: none;
+    }
+    .scanning-frame::after {
+      bottom: -3px;
+      right: -3px;
+      border-left: none;
+      border-top: none;
+    }
+    .camera-controls {
+      padding: 1rem;
+      background: #1e1e1e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .camera-controls .btn {
+      min-width: 100px;
+      z-index: 20;
+      position: relative;
+    }
+    .camera-controls .text-white {
+      flex: 1;
+      text-align: center;
+      margin: 0 1rem;
+    }
+    
+    /* Cards Section (Pickup / Delivery) - scp_store-style */
+    .cards-section {
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+    }
+    .option-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 0.75rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      position: relative;
+      min-height: 60px;
+    }
+    .option-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      border-color: var(--primary-color);
+    }
+    @media (min-width: 768px) {
+      .option-card {
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        gap: 1rem;
+      }
+    }
+    .option-card-icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    @media (min-width: 768px) {
+      .option-card-icon {
+        width: 40px;
+        height: 40px;
+      }
+    }
+    .option-card-text {
+      flex: 1;
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--text-color);
+    }
+    @media (min-width: 768px) {
+      .option-card-text {
+        font-size: 1.25rem;
+      }
+    }
+    .option-card-arrow {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    @media (min-width: 768px) {
+      .option-card-arrow {
+        font-size: 1.25rem;
+      }
+    }
+    .option-card:hover .option-card-arrow {
+      color: var(--primary-color);
+    }
+    .pickup-header-row {
+      position: relative;
+      min-height: 2rem;
+      margin-bottom: 1rem;
+    }
+    .pickup-header-row h5 {
+      margin: 0;
+      padding-right: 5rem;
+    }
+    .pickup-header-row .btn {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    /* Delivery OLPN List */
+    .delivery-section {
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+    }
+    .delivery-header-row {
+      position: relative;
+      min-height: 2rem;
+      margin-bottom: 1rem;
+    }
+    .delivery-header-row h5 {
+      margin: 0;
+      padding-right: 5rem;
+    }
+    .delivery-header-row .btn {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    .olpn-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .olpn-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .olpn-card .olpn-icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .olpn-card .olpn-text {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-color);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .olpn-card {
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .olpn-card:hover {
+      transform: translateY(-1px);
+      border-color: var(--primary-color);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+    }
+
+    /* Pallet expand/collapse controls */
+    .olpn-chevron {
+      margin-left: auto;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .olpn-chevron:hover {
+      background: rgba(0,0,0,0.06);
+      color: var(--text-color);
+    }
+    .pallet-children {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px dashed var(--border-color);
+      display: none;
+      gap: 0.5rem;
+      flex-direction: column;
+      width: 100%;
+    }
+    .pallet-child {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      background: rgba(0,0,0,0.03);
+      cursor: default;
+      width: 100%;
+    }
+    .pallet-child .child-icon {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .pallet-child .child-text {
+      font-size: 0.98rem;
+      font-weight: 600;
+      color: var(--text-color);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Ensure pallet expansion stacks BELOW on mobile/desktop */
+    .pallet-card {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .pallet-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+    }
+
+    /* Stops List */
+    .stop-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .stop-card:hover {
+      transform: translateY(-1px);
+      border-color: var(--primary-color);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+    }
+    .stop-card .stop-icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .stop-card .stop-text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .stop-card .stop-id {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-color);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.15;
+    }
+    .stop-card .stop-facility {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 0.15rem;
+    }
+
+    /* OLPN Detail Screen */
+    .olpn-detail-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    }
+    .olpn-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .olpn-detail-field label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+    .olpn-detail-field .value {
+      font-size: 1rem;
+      color: var(--text-color);
+      font-weight: 600;
+      background: rgba(0,0,0,0.04);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      min-height: 2.75rem; /* keep full box visible even when empty */
+      display: flex;
+      align-items: center;
+    }
+    .olpn-detail-field .value-multiline {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding-top: 0.55rem;
+      padding-bottom: 0.55rem;
+    }
+    .condition-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      background: rgba(0,0,0,0.03);
+      font-weight: 600;
+      color: var(--text-color);
+      max-width: 100%;
+    }
+    .condition-pill .code-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+    .condition-remove-btn {
+      border: none;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      line-height: 1;
+      color: var(--danger-color);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .condition-remove-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .olpn-detail-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      margin-top: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .olpn-detail-actions .btn {
+      min-width: 180px;
+    }
+    
+    /* Hidden until authenticated */
+    #mainUI {
+      display: none;
+    }
+    
+    @media (max-width: 768px) {
+      .signature-buttons {
+        flex-direction: column;
+      }
+      .signature-buttons .btn {
+        width: 100%;
+      }
+      #signatureCanvas {
+        height: 150px;
+      }
+      .theme-selector-btn { display: none; }
+      .camera-modal {
+        padding: 0.5rem;
+      }
+      .camera-container {
+        width: 95%;
+        max-width: none;
+      }
+      .camera-controls {
+        padding: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .camera-controls .btn {
+        min-width: 80px;
+        font-size: 0.9rem;
+      }
+      .camera-controls .text-white {
+        width: 100%;
+        margin: 0.5rem 0 0 0;
+        order: 3;
+      }
+
+      /* Mobile: show right-most digits with ellipsis on the LEFT */
+      .truncate-left {
+        direction: rtl;
+        unicode-bidi: plaintext;
+        text-align: left;
+      }
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      /* Keep element for click-to-close behavior, but remove visual overlay */
+      background: transparent;
+      backdrop-filter: none;
+      z-index: 998;
+    }
+    .modal-backdrop[hidden] {
+      display: none !important;
+    }
+    .modal {
+      position: fixed !important;
+      inset: 0;
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      z-index: 1001 !important;
+      pointer-events: auto;
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+    .modal[hidden] {
+      display: none !important;
+      visibility: hidden !important;
+    }
+    .modal-content {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-width: 360px;
+      width: 90%;
+      text-align: center;
+      color: var(--text-color);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    }
+    .modal-content h4 { margin-bottom: 0.75rem; color: var(--primary-color); font-weight: 600; }
+    .theme-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .theme-list button {
+      border: 1px solid var(--border-color);
+      background: var(--card-bg);
+      color: var(--text-color);
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      text-align: left;
+    }
+    .theme-list button.active {
+      background: var(--primary-color);
+      color: #fff;
+    }
+  </style>
+</head>
+<body class="p-4">
+  <div class="container">
+    <div class="card p-4">
+      <button class="theme-selector-btn" id="themeSelectorBtn" title="Change Theme">
+        <i class="fas fa-gear"></i>
+      </button>
+      <div class="logo-wrapper text-center mb-2">
+        <img src="/manhattan-logo.png" alt="Manhattan Associates" class="app-logo">
+      </div>
+      <h2 class="text-center mb-4 header-title">
+        <span class="header-title-text">Proof of Delivery</span><span class="app-version">v1.2.1</span>
+      </h2>
+
+      <!-- Authentication Section -->
+      <div id="authSection">
+        <div class="mb-3">
+          <label class="form-label">ORG:</label>
+          <input type="text" id="org" class="form-control" placeholder="Enter ORG" />
+          <small class="text-muted">Press Enter to authenticate</small>
+          <!-- Status Message for Auth Section (below input to prevent layout shift) -->
+          <div id="authStatus" class="status info" style="display: none; margin-top: 0.5rem;"></div>
+        </div>
+      </div>
+
+      <!-- Main UI (hidden until authenticated) -->
+      <div id="mainUI">
+        <!-- Barcode Input Section -->
+        <div class="mb-4">
+          <label class="form-label">Barcode / Shipment ID:</label>
+          <div class="barcode-input-group">
+            <input type="text" id="barcodeInput" class="form-control" placeholder="Scan or enter barcode" />
+            <button id="cameraBtn" class="btn btn-primary camera-btn" type="button" title="Scan barcode with camera">
+              <i class="fas fa-camera"></i>
+            </button>
+          </div>
+          <small class="text-muted">Enter shipment ID or use camera to scan barcode</small>
+        </div>
+
+        <!-- Status Message -->
+        <div id="status" class="status info" style="display: none;"></div>
+
+        <!-- Pickup / Delivery Cards Section -->
+        <div id="cardsSection" class="cards-section" style="display: none;">
+          <div class="option-card" id="pickupCard">
+            <div class="option-card-icon">
+              <i class="fas fa-truck-loading" style="color: var(--primary-color); font-size: 1.5rem;"></i>
+            </div>
+            <div class="option-card-text">Pickup</div>
+            <div class="option-card-arrow">
+              <i class="fas fa-chevron-right"></i>
+            </div>
+          </div>
+          <div class="option-card" id="deliveryCard">
+            <div class="option-card-icon">
+              <i class="fas fa-truck" style="color: var(--primary-color); font-size: 1.5rem;"></i>
+            </div>
+            <div class="option-card-text">Delivery</div>
+            <div class="option-card-arrow">
+              <i class="fas fa-chevron-right"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stops Section (Delivery -> Stops) -->
+        <div id="stopsSection" class="delivery-section" style="display: none;">
+          <div class="delivery-header-row">
+            <h5>Stops</h5>
+            <button class="btn btn-sm btn-outline-secondary" id="backFromStopsBtn" type="button">
+              <i class="fas fa-arrow-left"></i> Back
+            </button>
+          </div>
+          <div id="stopsEmpty" class="text-center py-4" style="display:none;">
+            <p style="color: var(--text-muted);">No stops found for this shipment.</p>
+          </div>
+          <div id="stopCards" class="olpn-cards"></div>
+        </div>
+
+        <!-- Delivery Section (OLPN list) -->
+        <div id="deliverySection" class="delivery-section" style="display: none;">
+          <div class="delivery-header-row">
+            <h5>Delivery</h5>
+            <button class="btn btn-sm btn-outline-secondary" id="backFromDeliveryBtn" type="button">
+              <i class="fas fa-arrow-left"></i> Back
+            </button>
+          </div>
+          <div id="deliveryLoading" class="text-center py-4" style="display:none;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2" style="color: var(--text-muted);">Loading OLPNS...</p>
+          </div>
+          <div id="deliveryEmpty" class="text-center py-4" style="display:none;">
+            <p style="color: var(--text-muted);">No OLPNS found for this shipment.</p>
+          </div>
+          <div id="olpnCards" class="olpn-cards"></div>
+        </div>
+
+        <!-- OLPN Detail Section -->
+        <div id="olpnDetailSection" class="delivery-section" style="display: none;">
+          <div class="delivery-header-row">
+            <h5>OLPN Details</h5>
+            <button class="btn btn-sm btn-outline-secondary" id="backFromOlpnDetailBtn" type="button">
+              <i class="fas fa-arrow-left"></i> Back
+            </button>
+          </div>
+
+          <div class="olpn-detail-card">
+            <div class="olpn-detail-grid">
+              <div class="olpn-detail-field">
+                <label>oLPN</label>
+                <div class="value" id="detailOlpnId"></div>
+              </div>
+              <div class="olpn-detail-field">
+                <label>Status</label>
+                <div class="value" id="detailStatus"></div>
+              </div>
+              <div class="olpn-detail-field">
+                <label>ContainerType</label>
+                <div class="value" id="detailContainerType"></div>
+              </div>
+              <div class="olpn-detail-field">
+                <label>ContainerSize</label>
+                <div class="value" id="detailContainerSize"></div>
+              </div>
+              <div class="olpn-detail-field">
+                <label>EstimatedVolume</label>
+                <div class="value" id="detailEstimatedVolume"></div>
+              </div>
+              <div class="olpn-detail-field">
+                <label>EstimatedWeight</label>
+                <div class="value" id="detailEstimatedWeight"></div>
+              </div>
+              <div class="olpn-detail-field">
+                <label>Condition Codes</label>
+                <div class="value value-multiline" id="detailConditionCodes"></div>
+              </div>
+            </div>
+
+            <div class="olpn-detail-actions">
+              <button id="updateConditionBtn" class="btn btn-outline-primary" type="button">
+                <i class="fas fa-clipboard-check"></i> Apply Condition
+              </button>
+              <button id="deliverBtn" class="btn btn-success" type="button">
+                <i class="fas fa-truck"></i> Deliver
+              </button>
+              <button id="photoBtn" class="btn btn-outline-secondary" type="button" title="Take photo" style="min-width: 56px; padding-left: 0.9rem; padding-right: 0.9rem;">
+                <i class="fas fa-camera"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Shipment Information Section (shown when Pickup is selected) -->
+        <div id="shipmentInfo" style="display: none;">
+          <div class="pickup-header-row">
+            <h5>Shipment Information</h5>
+            <button class="btn btn-sm btn-outline-secondary" id="backToCardsBtn" type="button">
+              <i class="fas fa-arrow-left"></i> Back
+            </button>
+          </div>
+          <div class="shipment-info">
+            <div class="info-field">
+              <label>Shipment</label>
+              <input type="text" id="shipmentId" class="form-control" readonly />
+            </div>
+            <div class="info-field">
+              <label>Bill of Lading Number</label>
+              <input type="text" id="billOfLading" class="form-control" readonly />
+            </div>
+            <div class="info-field">
+              <label>Carrier</label>
+              <input type="text" id="carrier" class="form-control" readonly />
+            </div>
+            <div class="info-field">
+              <label>Trailer</label>
+              <input type="text" id="trailer" class="form-control" />
+            </div>
+            <div class="info-field">
+              <label>Driver <span style="color: var(--danger-color);">*</span></label>
+              <input type="text" id="driver" class="form-control" placeholder="Enter driver name" required />
+            </div>
+          </div>
+        </div>
+
+        <!-- Signature Section (hidden until barcode is validated) -->
+        <div class="signature-section" style="display: none;">
+          <h5 class="mb-3">Digital Signature</h5>
+          <div class="signature-wrapper">
+            <canvas id="signatureCanvas"></canvas>
+          </div>
+          <div class="signature-buttons">
+            <button id="confirmPickupBtn" class="btn btn-success" type="button">
+              <i class="fas fa-check-circle"></i> Confirm Pickup
+            </button>
+            <button id="clearSignatureBtn" class="btn btn-danger" type="button">
+              <i class="fas fa-eraser"></i> Clear
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Modal -->
+  <div id="errorModal" class="error-modal" hidden>
+    <div class="error-modal-content">
+      <div class="error-modal-header">
+        <i class="fas fa-exclamation-circle"></i>
+        <h5>Error</h5>
+      </div>
+      <div class="error-modal-body">
+        <p id="errorModalMessage"></p>
+      </div>
+      <div class="error-modal-footer">
+        <button id="errorModalCloseBtn" class="btn btn-primary" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Camera Modal -->
+  <div id="cameraModal" class="camera-modal">
+    <div class="camera-container">
+      <div id="cameraViewport">
+        <div id="interactive"></div>
+        <div class="scanning-frame"></div>
+      </div>
+      <div class="camera-controls">
+        <button id="closeCameraBtn" class="btn btn-danger" type="button">
+          <i class="fas fa-times"></i> Close
+        </button>
+        <div class="text-white text-center">
+          <small>Point camera at barcode or QR code</small>
+          <div><small id="scannerStatus" style="opacity: 0.9;">Initializing camera...</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Photo Capture Modal (no barcode scanning) -->
+  <div id="photoModal" class="camera-modal">
+    <div class="camera-container">
+      <div style="position: relative; width: 100%; background: #000;">
+        <video id="photoVideo" autoplay playsinline style="width: 100%; height: auto; display: block;"></video>
+        <canvas id="photoCanvas" style="display:none;"></canvas>
+        <img id="photoPreview" alt="Photo preview" style="display:none; width: 100%; height: auto; object-fit: contain;" />
+      </div>
+      <div class="camera-controls" style="justify-content: space-between; gap: 0.75rem;">
+        <button id="closePhotoBtn" class="btn btn-danger" type="button">
+          <i class="fas fa-times"></i> Close
+        </button>
+        <button id="retakePhotoBtn" class="btn btn-outline-light" type="button" style="display:none;">
+          <i class="fas fa-rotate-left"></i> Retake
+        </button>
+        <button id="uploadPhotoBtn" class="btn btn-primary" type="button" style="display:none;">
+          <i class="fas fa-cloud-arrow-up"></i> Upload
+        </button>
+        <button id="capturePhotoBtn" class="btn btn-success" type="button">
+          <i class="fas fa-camera"></i> Capture
+        </button>
+      </div>
+    </div>
+  </div>
+  <div id="themeModal" class="modal" hidden>
+    <div class="modal-content text-start">
+      <h4>Select Theme</h4>
+      <div class="theme-list" id="themeList"></div>
+    </div>
+  </div>
+  <div id="conditionModal" class="modal" hidden>
+    <div class="modal-content text-start" style="max-width: 520px;">
+      <h4>Select Condition Code</h4>
+      <div id="conditionLoading" class="text-center py-3" style="display:none;">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2" style="color: var(--text-muted); margin-bottom: 0;">Loading condition codes...</p>
+      </div>
+      <div class="theme-list" id="conditionList" style="max-height: 320px; overflow:auto;"></div>
+      <div style="display:flex; gap:0.75rem; justify-content:flex-end; margin-top: 1rem;">
+        <button class="btn btn-outline-secondary" id="conditionCancelBtn" type="button">Cancel</button>
+        <button class="btn btn-primary" id="conditionApplyBtn" type="button" disabled>Apply Condition</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-backdrop" id="modalBackdrop" hidden></div>
+  <script src="/script.js"></script>
+  <!-- Vercel Analytics -->
+  <script>
+    (function() {
+      const url = '/_vercel/insights/script.js';
+
+      // Avoid "Unexpected token '<'" when endpoint returns HTML (e.g. Analytics not enabled)
+      (async () => {
+        try {
+          const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          if (!res.ok || !ct.includes('javascript')) {
+            console.warn('Vercel Analytics not available (skipping).', { status: res.status, contentType: ct });
+            return;
+          }
+
+          // Load script normally
+          const script = document.createElement('script');
+          script.src = url;
+          script.defer = true;
+          script.onerror = function() {
+            console.warn('Vercel Analytics script failed to load. Make sure Analytics is enabled in Vercel dashboard and the app is redeployed.');
+          };
+          document.head.appendChild(script);
+        } catch (e) {
+          console.warn('Vercel Analytics check failed (skipping).', e?.message || e);
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>
+

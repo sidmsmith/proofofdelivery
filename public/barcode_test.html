@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barcode Test - SHI000000020</title>
+  <!-- Fallback CDN loading functions - must be defined before script tags that use them -->
+  <script>
+    // Fallback CDN loading functions - defined first so they're available for onerror handlers
+    window.loadJsBarcodeAlternative = function() {
+      if (typeof JsBarcode === 'undefined' && !window.jsbarcodeLoading) {
+        window.jsbarcodeLoading = true;
+        console.log('Loading JsBarcode from alternative CDN...');
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/jsbarcode@3.11.5/dist/JsBarcode.all.min.js';
+        script.onerror = function() {
+          console.error('All JsBarcode CDNs failed');
+          window.jsbarcodeFailed = true;
+          window.jsbarcodeLoading = false;
+        };
+        script.onload = function() {
+          console.log('JsBarcode loaded from alternative CDN');
+          window.jsbarcodeLoading = false;
+        };
+        document.head.appendChild(script);
+      }
+    };
+    
+    window.loadQRCodeAlternative = function() {
+      // Safely check if QRCode exists
+      let qrExists = false;
+      try {
+        qrExists = typeof QRCode !== 'undefined' || typeof window.QRCode !== 'undefined';
+      } catch (e) {
+        qrExists = false;
+      }
+      
+      if (!qrExists && !window.qrcodeLoading) {
+        window.qrcodeLoading = true;
+        console.log('Loading QRCode from alternative CDN (unpkg)...');
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js';
+        script.onerror = function() {
+          console.error('All QRCode CDNs failed - trying QRious as fallback...');
+          // Try QRious library as last resort
+          const qriousScript = document.createElement('script');
+          qriousScript.src = 'https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js';
+          qriousScript.onerror = function() {
+            console.error('All QR code libraries failed');
+            window.qrcodeFailed = true;
+            window.qrcodeLoading = false;
+          };
+          qriousScript.onload = function() {
+            console.log('QRious loaded as fallback');
+            window.qrcodeLoading = false;
+            // QRious uses different API, we'll handle it in generateBarcodes
+            window.usingQRious = true;
+          };
+          document.head.appendChild(qriousScript);
+        };
+        script.onload = function() {
+          console.log('QRCode loaded from alternative CDN');
+          window.qrcodeLoading = false;
+        };
+        document.head.appendChild(script);
+      }
+    };
+  </script>
+  
+  <!-- Try multiple CDN sources for reliability -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js" 
+          onerror="console.error('JsBarcode (jsdelivr) failed, trying alternative...'); if (typeof loadJsBarcodeAlternative !== 'undefined') loadJsBarcodeAlternative();"></script>
+  <!-- Try multiple QR code library CDNs -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"
+          onerror="console.error('QRCode (jsdelivr) failed, trying alternative...'); if (typeof loadQRCodeAlternative !== 'undefined') loadQRCodeAlternative();"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #f5f5f5;
+      padding: 2rem;
+    }
+    .barcode-container {
+      text-align: center;
+      background: white;
+      padding: 3rem;
+      border: 3px solid #000;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      margin-bottom: 2rem;
+      max-width: 800px;
+      width: 100%;
+    }
+    h1 {
+      margin-bottom: 2rem;
+      color: #333;
+      font-size: 2rem;
+    }
+    .barcode-label {
+      margin-top: 1.5rem;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #000;
+      letter-spacing: 2px;
+    }
+    .barcode-wrapper {
+      background: #fff;
+      padding: 2rem;
+      border: 2px solid #ddd;
+      margin: 1rem 0;
+    }
+    svg {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+    .format-label {
+      font-size: 1rem;
+      color: #666;
+      margin-bottom: 0.5rem;
+      font-weight: bold;
+    }
+    .instructions {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: #fff;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      max-width: 800px;
+      width: 100%;
+    }
+    .instructions h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    .instructions ul {
+      text-align: left;
+      line-height: 1.8;
+    }
+    .instructions li {
+      margin-bottom: 0.5rem;
+    }
+    #qrcode {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+    }
+    .download-btn {
+      margin-top: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .download-btn:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="barcode-container">
+    <h1>Test Barcode: SHI000000020</h1>
+    
+    <div class="barcode-wrapper">
+      <div class="format-label">QR Code (Best for Screen Scanning - Recommended)</div>
+      <canvas id="qrcode"></canvas>
+    </div>
+    
+    <div class="barcode-wrapper">
+      <div class="format-label">Code 128</div>
+      <svg id="barcode-code128"></svg>
+    </div>
+    
+    <div class="barcode-wrapper">
+      <div class="format-label">Code 39</div>
+      <svg id="barcode-code39"></svg>
+    </div>
+    
+    <div class="barcode-label">SHI000000020</div>
+  </div>
+  
+  <div class="instructions">
+    <h3>Scanning Instructions:</h3>
+    <ul>
+      <li><strong>Expected Value:</strong> SHI000000020</li>
+      <li><strong>Formats:</strong> QR Code (recommended for screen scanning), Code 128, and Code 39</li>
+      <li><strong>QR Code is best for screen scanning</strong> - it has built-in error correction and works much better than traditional barcodes on screens</li>
+      <li>Try scanning with the Proof of Delivery app camera</li>
+      <li>Make sure your screen brightness is at maximum</li>
+      <li>Hold the camera steady, 6-12 inches away from the screen</li>
+      <li>Ensure the QR code/barcode fills most of the camera viewfinder</li>
+      <li>Start with the QR code - it should scan much more reliably!</li>
+    </ul>
+  </div>
+
+  <script>
+    const barcodeValue = "SHI000000020";
+    
+    // Debug: Check what's available on window
+    function debugLibraries() {
+      console.log('=== Library Debug Info ===');
+      console.log('window.QRCode:', typeof window.QRCode);
+      console.log('window.JsBarcode:', typeof window.JsBarcode);
+      console.log('QRCode (global):', typeof QRCode);
+      console.log('JsBarcode (global):', typeof JsBarcode);
+      console.log('All window properties containing "code":', Object.keys(window).filter(k => k.toLowerCase().includes('code')));
+      console.log('All window properties containing "barcode":', Object.keys(window).filter(k => k.toLowerCase().includes('barcode')));
+    }
+    
+    // Wait for DOM and libraries to be ready
+    function generateBarcodes() {
+      const qrCanvas = document.getElementById('qrcode');
+      
+      // Debug first
+      debugLibraries();
+      
+      // Check if libraries are loaded - try multiple ways (safely)
+      let QRCodeLib = null;
+      let JsBarcodeLib = null;
+      
+      try {
+        QRCodeLib = window.QRCode || (typeof QRCode !== 'undefined' ? QRCode : null);
+      } catch (e) {
+        QRCodeLib = null;
+      }
+      
+      try {
+        JsBarcodeLib = window.JsBarcode || (typeof JsBarcode !== 'undefined' ? JsBarcode : null);
+      } catch (e) {
+        JsBarcodeLib = null;
+      }
+      
+      // Try QRious if QRCode failed
+      if (!QRCodeLib && window.usingQRious && typeof QRious !== 'undefined') {
+        try {
+          const qr = new QRious({
+            value: barcodeValue,
+            size: 400,
+            level: 'M'
+          });
+          const ctx = qrCanvas.getContext('2d');
+          const img = new Image();
+          img.onload = function() {
+            ctx.drawImage(img, 0, 0);
+          };
+          img.src = qr.toDataURL();
+          console.log('QR Code generated using QRious fallback');
+          return; // Success with QRious
+        } catch (error) {
+          console.error('QRious generation failed:', error);
+        }
+      }
+      
+      if (!QRCodeLib) {
+        console.error('QRCode library not loaded');
+        qrCanvas.innerHTML = '<p style="color: red; padding: 20px;">Error: QRCode library failed to load from all CDNs.<br>Please check your internet connection or try refreshing the page.<br><br>You can still test with the Code 128 and Code 39 barcodes below.</p>';
+      } else {
+        console.log('QRCode library loaded, generating QR code...');
+        // Generate QR Code (best for screen scanning - has error correction built in)
+        try {
+          QRCodeLib.toCanvas(qrCanvas, barcodeValue, {
+            width: 400,
+            margin: 2,
+            color: {
+              dark: '#000000',
+              light: '#FFFFFF'
+            },
+            errorCorrectionLevel: 'M' // Medium error correction (15% recovery)
+          }, function (error) {
+            if (error) {
+              console.error('QR Code generation error:', error);
+              qrCanvas.innerHTML = '<p style="color: red; padding: 20px;">Error generating QR code: ' + error.message + '</p>';
+            } else {
+              console.log('QR Code generated successfully');
+            }
+          });
+        } catch (error) {
+          console.error('QR Code generation exception:', error);
+          qrCanvas.innerHTML = '<p style="color: red; padding: 20px;">Exception: ' + error.message + '</p>';
+        }
+      }
+      
+      // Check if JsBarcode is loaded - use the variable we already declared above
+      if (!JsBarcodeLib) {
+        console.error('JsBarcode library not loaded');
+        document.getElementById('barcode-code128').innerHTML = '<p style="color: red; padding: 20px;">Error: JsBarcode library failed to load.</p>';
+        document.getElementById('barcode-code39').innerHTML = '<p style="color: red; padding: 20px;">Error: JsBarcode library failed to load.</p>';
+      } else {
+        // Generate Code 128 barcode (larger, thicker bars for better scanning)
+        try {
+          JsBarcodeLib("#barcode-code128", barcodeValue, {
+            format: "CODE128",
+            width: 3,  // Thicker bars
+            height: 150,  // Taller barcode
+            displayValue: true,
+            fontSize: 24,
+            margin: 15,
+            background: "#ffffff",
+            lineColor: "#000000",
+            textMargin: 5
+          });
+          console.log('Code 128 barcode generated successfully');
+        } catch (error) {
+          console.error('Code 128 generation error:', error);
+          document.getElementById('barcode-code128').innerHTML = '<p style="color: red; padding: 20px;">Error: ' + error.message + '</p>';
+        }
+        
+        // Generate Code 39 barcode (alternative format)
+        try {
+          JsBarcodeLib("#barcode-code39", barcodeValue, {
+            format: "CODE39",
+            width: 3,
+            height: 150,
+            displayValue: true,
+            fontSize: 24,
+            margin: 15,
+            background: "#ffffff",
+            lineColor: "#000000",
+            textMargin: 5
+          });
+          console.log('Code 39 barcode generated successfully');
+        } catch (error) {
+          console.error('Code 39 generation error:', error);
+          document.getElementById('barcode-code39').innerHTML = '<p style="color: red; padding: 20px;">Error: ' + error.message + '</p>';
+        }
+      }
+      
+      // Log for debugging
+      console.log('Barcode test page loaded. Expected value:', barcodeValue);
+    }
+    
+    // Wait for DOM and libraries to be ready
+    let retryCount = 0;
+    const maxRetries = 30; // 6 seconds max (30 * 200ms)
+    
+    function init() {
+      retryCount++;
+      
+      // Safely check if libraries are available (don't reference undefined variables)
+      let qrAvailable = false;
+      let jsbAvailable = false;
+      
+      try {
+        qrAvailable = typeof window.QRCode !== 'undefined' || (typeof QRCode !== 'undefined');
+      } catch (e) {
+        qrAvailable = false;
+      }
+      
+      try {
+        jsbAvailable = typeof window.JsBarcode !== 'undefined' || (typeof JsBarcode !== 'undefined');
+      } catch (e) {
+        jsbAvailable = false;
+      }
+      
+      // Check for load failures
+      if (window.jsbarcodeFailed && !jsbAvailable) {
+        console.error('JsBarcode failed to load from all CDNs');
+        document.getElementById('barcode-code128').innerHTML = '<p style="color: red; padding: 20px;">Error: JsBarcode library failed to load.</p>';
+        document.getElementById('barcode-code39').innerHTML = '<p style="color: red; padding: 20px;">Error: JsBarcode library failed to load.</p>';
+      }
+      
+      if (window.qrcodeFailed && !qrAvailable) {
+        console.error('QRCode failed to load from all CDNs');
+        document.getElementById('qrcode').innerHTML = '<p style="color: red; padding: 20px;">Error: QRCode library failed to load.</p>';
+      }
+      
+      // Check if libraries are loaded, retry if not
+      if (!qrAvailable || !jsbAvailable) {
+        if (retryCount < maxRetries) {
+          if (retryCount % 5 === 0) { // Only log every 5th retry to reduce spam
+            console.log('Waiting for libraries... QRCode: ' + (qrAvailable ? '✓' : '✗') + ', JsBarcode: ' + (jsbAvailable ? '✓' : '✗') + ' (' + retryCount + '/' + maxRetries + ')');
+          }
+          setTimeout(init, 200);
+        } else {
+          console.error('Libraries failed to load after ' + maxRetries + ' retries');
+          const errorMsg = '<p style="color: red; padding: 20px;">Error: Libraries took too long to load.<br>QRCode: ' + (qrAvailable ? 'loaded' : 'missing') + '<br>JsBarcode: ' + (jsbAvailable ? 'loaded' : 'missing') + '<br>Please check your internet connection and refresh the page.</p>';
+          if (!qrAvailable) document.getElementById('qrcode').innerHTML = errorMsg;
+          if (!jsbAvailable) {
+            document.getElementById('barcode-code128').innerHTML = errorMsg;
+            document.getElementById('barcode-code39').innerHTML = errorMsg;
+          }
+        }
+        return;
+      }
+      
+      console.log('All libraries loaded, generating barcodes...');
+      generateBarcodes();
+    }
+    
+    // Wait for window load to ensure scripts have had time to load
+    window.addEventListener('load', function() {
+      console.log('Window loaded, checking libraries...');
+      console.log('QRCode:', typeof QRCode !== 'undefined' ? 'available' : 'missing');
+      console.log('JsBarcode:', typeof JsBarcode !== 'undefined' ? 'available' : 'missing');
+      setTimeout(init, 500); // Give scripts extra time after window load
+    });
+  </script>
+</body>
+</html>
+
