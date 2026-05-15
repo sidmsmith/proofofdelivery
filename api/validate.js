@@ -1,7 +1,11 @@
 // api/validate.js
 import fetch from 'node-fetch';
 
-const HA_WEBHOOK_URL = process.env.HA_WEBHOOK_URL || "http://sidmsmith.zapto.org:8123/api/webhook/manhattan_app_usage";
+const USAGE_INGEST_URL = (process.env.MANHATTAN_USAGE_INGEST_URL || '').trim();
+const USAGE_INGEST_SECRET = (process.env.MANHATTAN_USAGE_INGEST_SECRET || '').trim();
+const APP_NAME = 'proofofdelivery';
+const APP_VERSION = '1.2.1';
+
 const AUTH_HOST = process.env.MANHATTAN_AUTH_HOST || "salep-auth.sce.manh.com";
 const API_HOST = process.env.MANHATTAN_API_HOST || "salep.sce.manh.com";
 const CLIENT_ID = process.env.MANHATTAN_CLIENT_ID || "omnicomponent.1.0.0";
@@ -9,10 +13,24 @@ const CLIENT_SECRET = process.env.MANHATTAN_SECRET;
 const PASSWORD = process.env.MANHATTAN_PASSWORD;
 const USERNAME_BASE = process.env.MANHATTAN_USERNAME_BASE || "sdtadmin@";
 
-// Helper: send to HA (legacy - will be replaced by ha-track endpoint)
-async function sendHA(action, org, data = {}) {
-  // This function is kept for backward compatibility but events are now tracked via frontend
-  // No-op to avoid duplicate tracking
+async function forwardUsageEvent(payload) {
+  if (!USAGE_INGEST_URL) {
+    console.warn('[usage] MANHATTAN_USAGE_INGEST_URL not set; event not recorded');
+    return;
+  }
+  const headers = { 'Content-Type': 'application/json' };
+  if (USAGE_INGEST_SECRET) {
+    headers.Authorization = `Bearer ${USAGE_INGEST_SECRET}`;
+  }
+  try {
+    await fetch(USAGE_INGEST_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    console.warn('[usage] Forward failed:', e.message || e);
+  }
 }
 
 // Get OAuth token
@@ -89,31 +107,18 @@ export default async function handler(req, res) {
     return res.json({ success: true });
   }
 
-  // === HA TRACK EVENT ===
-  if (action === 'ha-track') {
+  // === USAGE TRACK (dashboard ingest → Neon) ===
+  if (action === 'usage-track' || action === 'ha-track') {
     const { event_name, metadata } = req.body;
-    
-    try {
-      const payload = {
-        event_name,
-        app_name: 'proof-of-delivery',
-        app_version: '1.0.0',
-        ...metadata,
-        timestamp: new Date().toISOString()
-      };
-      
-      await fetch(HA_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      return res.json({ success: true });
-    } catch (error) {
-      // Silently fail - don't interrupt user experience
-      console.warn('[HA] Failed to track event:', error);
-      return res.json({ success: true }); // Return success anyway
-    }
+    const payload = {
+      ...(metadata && typeof metadata === 'object' ? metadata : {}),
+      event_name,
+      app_name: APP_NAME,
+      app_version: APP_VERSION,
+      timestamp: new Date().toISOString(),
+    };
+    await forwardUsageEvent(payload);
+    return res.json({ success: true });
   }
 
   // === AUTHENTICATE ===

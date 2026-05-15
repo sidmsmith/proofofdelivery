@@ -589,19 +589,16 @@ function getDeviceType() {
   return 'desktop';
 }
 
-// Home Assistant tracking helper with enhanced metadata
+// Usage tracking (dashboard ingest → Neon)
 async function trackEvent(eventName, metadata = {}) {
   try {
-    // Get common metadata and merge with event-specific metadata
     const fullMetadata = getCommonMetadata(metadata);
-    
-    await apiCall('ha-track', {
+    await apiCall('usage-track', {
       event_name: eventName,
       metadata: fullMetadata
     });
   } catch (error) {
-    // Silently fail - don't interrupt user experience
-    console.warn('[HA] Failed to track event:', error);
+    console.warn('[usage] Failed to track event:', error);
   }
 }
 
@@ -3055,8 +3052,6 @@ window.addEventListener('load', async () => {
   
   // Track app opened with full metadata
   trackEvent('app_opened', {});
-  
-  await apiCall('app_opened');
   
   // Check for auto-authenticate
   checkAutoAuth();
